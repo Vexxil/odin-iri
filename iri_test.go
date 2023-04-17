@@ -28,7 +28,7 @@ func TestPctEncoded(t *testing.T) {
 		p := newParser(v)
 		p.next()
 		if err := p.pctEncoded(); err == nil {
-			t.Fatal(err)
+			t.Fatalf("pctEncoded should have failed with %s", v)
 		}
 	}
 
@@ -37,6 +37,41 @@ func TestPctEncoded(t *testing.T) {
 		p.next()
 		if err := p.pctEncoded(); err != nil {
 			t.Fatalf("pctEncoded should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
+
+func TestDecOctet(t *testing.T) {
+	failSet := []string{
+		"00",
+		"05",
+		"000",
+		"001",
+		"256",
+		"300",
+	}
+	goodSet := []string{
+		"0",
+		"9",
+		"12",
+		"99",
+		"100",
+		"255",
+	}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.decOctet(); err == nil {
+			t.Fatalf("decOctet should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.decOctet(); err != nil {
+			t.Fatalf("decOctet should succeed with '%s': %s", v, err.Error())
 		}
 	}
 }

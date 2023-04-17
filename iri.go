@@ -148,30 +148,20 @@ func (p *parser) decOctet() error {
 	}
 	octetRunes = append(octetRunes, p.current())
 	peek, peekErr := p.peek()
-	if peekErr != nil {
-		return newIriError(p, peekErr.Error())
-	}
-	if !isDigit(peek) {
+	if peekErr != nil || !isDigit(peek) {
 		return nil
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
-	}
+	p.next()
 	octetRunes = append(octetRunes, p.current())
 	d, _ := strconv.Atoi(string(octetRunes))
 	if d < 10 {
 		return newIriError(p, "invalid octet value")
 	}
 	peek, peekErr = p.peek()
-	if peekErr != nil {
-		return newIriError(p, peekErr.Error())
-	}
-	if !isDigit(peek) {
+	if peekErr != nil || !isDigit(peek) {
 		return nil
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
-	}
+	p.next()
 	octetRunes = append(octetRunes, p.current())
 	d, _ = strconv.Atoi(string(octetRunes))
 	if d < 100 || d > 255 {
@@ -179,7 +169,7 @@ func (p *parser) decOctet() error {
 	}
 	peek, peekErr = p.peek()
 	if peekErr != nil {
-		return newIriError(p, peekErr.Error())
+		return nil
 	}
 	if isDigit(peek) {
 		return newIriError(p, "invalid octet value")
