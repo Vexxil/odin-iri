@@ -109,3 +109,24 @@ func TestIpv4Address(t *testing.T) {
 		}
 	}
 }
+
+func TestH16(t *testing.T) {
+	/// No point for a fail set since this is mainly iterating over hexDigit
+	goodSet := []string{
+		"1",
+		"a",
+		"AA",
+		"AAA",
+		"10E4",
+		"0000",
+		"00000",
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.h16(); err != nil {
+			t.Fatalf("h16 should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}

@@ -104,19 +104,23 @@ func (p *parser) h16() error {
 	if !isHexDigit(p.current()) {
 		return newIriError(p, "invalid h16 value")
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
-	}
 	hexCount := 1
 	for hexCount < 4 {
+		if _, pErr := p.peek(); pErr != nil {
+			return nil
+		}
+		p.next()
 		if isHexDigit(p.current()) {
 			hexCount++
-			if nErr := p.next(); nErr != nil {
-				return nErr
-			}
 		} else {
 			break
 		}
+	}
+	if hexCount == 4 {
+		if _, pErr := p.peek(); pErr != nil {
+			return nil
+		}
+		p.next()
 	}
 	return nil
 }
