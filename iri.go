@@ -3,6 +3,7 @@ package odin_iri
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -20,7 +21,7 @@ type IriError struct {
 }
 
 func (i IriError) Error() string {
-	return ""
+	return fmt.Sprintf("index: %d, char: %c, message: %s", i.index, i.char, i.message)
 }
 
 func ParseIri(value string) (IRI, error) {
@@ -40,48 +41,53 @@ type parser struct {
 	length int
 }
 
-func newParser(value string) parser {
-	return parser{
+func newParser(value string) *parser {
+	return &parser{
 		runes:  bytes.Runes([]byte(value)),
 		index:  -1,
 		length: len(value),
 	}
 }
 
-func (p parser) next() {
-	p.index++
-	if p.index == p.length {
-		panic("incomplete IRI")
+func (p *parser) next() error {
+	if p.index+1 == p.length {
+		return newIriError(p, "incomplete IRI")
 	}
+	p.index++
+	return nil
 }
 
-func (p parser) current() rune {
+func (p *parser) current() rune {
 	return p.runes[p.index]
 }
 
-func (p parser) peek() (rune, error) {
+func (p *parser) peek() (rune, error) {
 	if p.index+1 == p.length {
 		return rune(0), errors.New("end of rune set reached")
 	}
 	return p.runes[p.index+1], nil
 }
 
-func (p parser) setIndex(index int) {
+func (p *parser) setIndex(index int) {
 	p.index = index
 }
 
-func (p parser) parse() (IRI, error) {
+func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
-func (p parser) ls32() error {
+func (p *parser) ls32() error {
 	preH16Index := p.index
 	if h16Err := p.h16(); h16Err == nil {
-		p.next()
+		if nErr := p.next(); nErr != nil {
+			return nErr
+		}
 		if p.current() != ':' {
 			p.setIndex(preH16Index)
 		} else {
-			p.next()
+			if nErr := p.next(); nErr != nil {
+				return nErr
+			}
 			if h16Err = p.h16(); h16Err == nil {
 				return nil
 			}
@@ -94,16 +100,20 @@ func (p parser) ls32() error {
 	return nil
 }
 
-func (p parser) h16() error {
+func (p *parser) h16() error {
 	if !isHexDigit(p.current()) {
 		return newIriError(p, "invalid h16 value")
 	}
-	p.next()
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
 	hexCount := 1
 	for hexCount < 4 {
 		if isHexDigit(p.current()) {
 			hexCount++
-			p.next()
+			if nErr := p.next(); nErr != nil {
+				return nErr
+			}
 		} else {
 			break
 		}
@@ -111,23 +121,27 @@ func (p parser) h16() error {
 	return nil
 }
 
-func (p parser) ipv4Address() error {
+func (p *parser) ipv4Address() error {
 	octCount := 0
 	for octCount < 4 {
 		if oErr := p.decOctet(); oErr != nil {
 			return oErr
 		}
-		p.next()
+		if nErr := p.next(); nErr != nil {
+			return nErr
+		}
 		if p.current() != '.' {
 			return newIriError(p, "invalid ipv4 address")
 		}
-		p.next()
+		if nErr := p.next(); nErr != nil {
+			return nErr
+		}
 		octCount++
 	}
 	return nil
 }
 
-func (p parser) decOctet() error {
+func (p *parser) decOctet() error {
 	octetRunes := make([]rune, 0)
 	if !isDigit(p.current()) {
 		return newIriError(p, "invalid decimal octet")
@@ -140,7 +154,9 @@ func (p parser) decOctet() error {
 	if !isDigit(peek) {
 		return nil
 	}
-	p.next()
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
 	octetRunes = append(octetRunes, p.current())
 	d, _ := strconv.Atoi(string(octetRunes))
 	if d < 10 {
@@ -153,7 +169,9 @@ func (p parser) decOctet() error {
 	if !isDigit(peek) {
 		return nil
 	}
-	p.next()
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
 	octetRunes = append(octetRunes, p.current())
 	d, _ = strconv.Atoi(string(octetRunes))
 	if d < 100 || d > 255 {
@@ -169,22 +187,26 @@ func (p parser) decOctet() error {
 	return nil
 }
 
-func (p parser) pctEncoded() error {
+func (p *parser) pctEncoded() error {
 	if p.current() != '%' {
 		return newIriError(p, "invalid pct encoding")
 	}
-	p.next()
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
 	if !isHexDigit(p.current()) {
 		return newIriError(p, "invalid pct encoding")
 	}
-	p.next()
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
 	if !isHexDigit(p.current()) {
 		return newIriError(p, "invalid pct encoding")
 	}
 	return nil
 }
 
-func newIriError(p parser, message string) IriError {
+func newIriError(p *parser, message string) IriError {
 	return IriError{
 		index:   p.index,
 		char:    p.current(),
