@@ -130,3 +130,32 @@ func TestH16(t *testing.T) {
 		}
 	}
 }
+
+func TestLs32(t *testing.T) {
+	failSet := []string{
+		"DDDDD:11",
+	}
+	goodSet := []string{
+		"1:1",
+		"1:1:1",
+		"34De:1",
+		"1:ffff",
+		"12:12:222:12",
+	}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ls32(); err == nil {
+			t.Fatalf("ls32 should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ls32(); err != nil {
+			t.Fatalf("ls32 should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}

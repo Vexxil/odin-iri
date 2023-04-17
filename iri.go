@@ -78,24 +78,24 @@ func (p *parser) parse() (IRI, error) {
 
 func (p *parser) ls32() error {
 	preH16Index := p.index
-	if h16Err := p.h16(); h16Err == nil {
-		if nErr := p.next(); nErr != nil {
-			return nErr
-		}
-		if p.current() != ':' {
-			p.setIndex(preH16Index)
-		} else {
-			if nErr := p.next(); nErr != nil {
-				return nErr
-			}
-			if h16Err = p.h16(); h16Err == nil {
-				return nil
-			}
-			p.setIndex(preH16Index)
-		}
+	if ipv4Err := p.ipv4Address(); ipv4Err == nil {
+		return nil
 	}
-	if ipv4Err := p.ipv4Address(); ipv4Err != nil {
-		return ipv4Err
+	p.setIndex(preH16Index)
+	if h16Err := p.h16(); h16Err != nil {
+		return h16Err
+	}
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
+	if p.current() != ':' {
+		return newIriError(p, "invalid ls32 value")
+	}
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
+	if h16Err := p.h16(); h16Err != nil {
+		return h16Err
 	}
 	return nil
 }
@@ -106,21 +106,16 @@ func (p *parser) h16() error {
 	}
 	hexCount := 1
 	for hexCount < 4 {
-		if _, pErr := p.peek(); pErr != nil {
+		pv, pErr := p.peek()
+		if pErr != nil {
 			return nil
 		}
-		p.next()
-		if isHexDigit(p.current()) {
+		if isHexDigit(pv) {
+			p.next()
 			hexCount++
 		} else {
 			break
 		}
-	}
-	if hexCount == 4 {
-		if _, pErr := p.peek(); pErr != nil {
-			return nil
-		}
-		p.next()
 	}
 	return nil
 }
