@@ -127,6 +127,10 @@ func (p *parser) ipv4Address() error {
 		if oErr := p.decOctet(); oErr != nil {
 			return oErr
 		}
+		octCount++
+		if octCount == 4 {
+			break
+		}
 		if nErr := p.next(); nErr != nil {
 			return nErr
 		}
@@ -136,7 +140,6 @@ func (p *parser) ipv4Address() error {
 		if nErr := p.next(); nErr != nil {
 			return nErr
 		}
-		octCount++
 	}
 	return nil
 }

@@ -75,3 +75,37 @@ func TestDecOctet(t *testing.T) {
 		}
 	}
 }
+
+func TestIpv4Address(t *testing.T) {
+	failSet := []string{
+		"1",
+		"1.1",
+		"1.1.1",
+		"00.0.0.00",
+		"256.0.0.1",
+		"1234.0.0.1",
+		"999.9.1.0",
+	}
+	goodSet := []string{
+		"0.0.0.0",
+		"1.1.1.1",
+		"11.11.11.11",
+		"255.255.255.255",
+	}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipv4Address(); err == nil {
+			t.Fatalf("ipv4Address should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipv4Address(); err != nil {
+			t.Fatalf("ipv4Address should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
