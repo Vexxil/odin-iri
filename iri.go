@@ -76,6 +76,42 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) ipvFuture() error {
+	if p.current() != 'v' {
+		return newIriError(p, "IpvFuture must start with 'v'")
+	}
+	h16Count := 0
+	for {
+		p.next()
+		if h16Err := p.h16(); h16Err == nil {
+			h16Count++
+			continue
+		}
+		if h16Count < 1 {
+			return newIriError(p, "Invalid IpvFuture")
+		}
+		break
+	}
+	if p.current() != '.' {
+		return newIriError(p, "Invalid IpvFuture")
+	}
+	p.next()
+	postCount := 0
+	for {
+		if isUnreserved(p.current()) || isSubDelim(p.current()) || p.current() == ':' {
+			postCount++
+			if pNext := p.next(); pNext == nil {
+				continue
+			}
+		}
+		if postCount < 1 {
+			return newIriError(p, "Invalid IpvFuture")
+		}
+		break
+	}
+	return nil
+}
+
 func (p *parser) ipv6Address() error {
 	groupCount := 0
 	zeroCollaps := false
@@ -104,7 +140,7 @@ func (p *parser) ipv6Address() error {
 			return nErr
 		}
 	}
-
+	p.next()
 	return nil
 }
 

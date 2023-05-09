@@ -180,3 +180,24 @@ func TestIpv6Address(t *testing.T) {
 		}
 	}
 }
+
+func TestIpvFutures(t *testing.T) {
+	failSet := []string{"7"}
+	goodSet := []string{"v7.1-2"}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipvFuture(); err == nil {
+			t.Fatalf("ipvFuture should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipvFuture(); err != nil {
+			t.Fatalf("ipvFuture should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
