@@ -222,3 +222,24 @@ func TestIpLiteral(t *testing.T) {
 		}
 	}
 }
+
+func TestPort(t *testing.T) {
+	failSet := []string{"-1", "65565"}
+	goodSet := []string{"1", "655", "65535"}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.port(); err == nil {
+			t.Fatalf("port should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.port(); err != nil {
+			t.Fatalf("port should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}

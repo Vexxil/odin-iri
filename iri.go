@@ -76,6 +76,34 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) port() error {
+	count := 0
+	digits := make([]rune, 0)
+	for {
+		if isDigit(p.current()) {
+			digits = append(digits, p.current())
+			count++
+			if pErr := p.next(); pErr == nil {
+				continue
+			}
+		}
+		break
+	}
+	if count == 0 {
+		return newIriError(p, "No port")
+	}
+	if count > 5 {
+		return newIriError(p, "Invalid port")
+	}
+	portStr := string(digits)
+	port, _ := strconv.Atoi(portStr)
+	if port > 65535 {
+		return newIriError(p, "Invalid port value")
+	}
+	p.next()
+	return nil
+}
+
 func (p *parser) ipLiteral() error {
 	if p.current() != '[' {
 		return newIriError(p, "Missing starting '[' ip literal")
