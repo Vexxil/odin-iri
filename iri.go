@@ -76,6 +76,38 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) ipv6Address() error {
+	groupCount := 0
+	zeroCollaps := false
+	prevColon := false
+
+	for {
+		if p.current() == ':' {
+			if prevColon {
+				groupCount++
+				zeroCollaps = true
+			} else if zeroCollaps {
+				return newIriError(p, "Invalid zero collapse in ipv6")
+			}
+			prevColon = true
+		} else {
+			prevColon = false
+			if pErr := p.h16(); pErr != nil {
+				return newIriError(p, "Invalid hextet in ipv6")
+			}
+			groupCount++
+		}
+		if groupCount == 8 {
+			break
+		}
+		if nErr := p.next(); nErr != nil {
+			return nErr
+		}
+	}
+
+	return nil
+}
+
 func (p *parser) ls32() error {
 	preH16Index := p.index
 	if ipv4Err := p.ipv4Address(); ipv4Err == nil {

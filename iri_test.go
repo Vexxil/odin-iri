@@ -159,3 +159,24 @@ func TestLs32(t *testing.T) {
 		}
 	}
 }
+
+func TestIpv6Address(t *testing.T) {
+	failSet := []string{":0db8:0000:0000:0000:ff00:0042:8329"}
+	goodSet := []string{"2001:0db8:0000:0000:0000:ff00:0042:8329"}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipv6Address(); err == nil {
+			t.Fatalf("ipv6Address should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipv6Address(); err != nil {
+			t.Fatalf("ipv6Address should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
