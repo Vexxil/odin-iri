@@ -201,3 +201,24 @@ func TestIpvFutures(t *testing.T) {
 		}
 	}
 }
+
+func TestIpLiteral(t *testing.T) {
+	failSet := []string{"7"}
+	goodSet := []string{"[v7.1-2]", "[2001:0db8:0000:0000:0000:ff00:0042:8329]"}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipLiteral(); err == nil {
+			t.Fatalf("ipLiteral should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ipLiteral(); err != nil {
+			t.Fatalf("ipLiteral should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}

@@ -76,6 +76,27 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) ipLiteral() error {
+	if p.current() != '[' {
+		return newIriError(p, "Missing starting '[' ip literal")
+	}
+	p.next()
+	preIndex := p.index
+	if ipv6Err := p.ipv6Address(); ipv6Err == nil {
+		return nil
+	}
+	p.index = preIndex
+	if ipvfErr := p.ipvFuture(); ipvfErr != nil {
+		return newIriError(p, "Invalid ipv6 or ipv future for ip literal")
+	}
+	p.next()
+	if p.current() != ']' {
+		return newIriError(p, "Missing ending ']' ip literal")
+	}
+	p.next()
+	return nil
+}
+
 func (p *parser) ipvFuture() error {
 	if p.current() != 'v' {
 		return newIriError(p, "IpvFuture must start with 'v'")
