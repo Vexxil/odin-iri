@@ -76,6 +76,18 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) iunreserved() error {
+	//ALPHA / DIGIT / "-" / "." / "_" / "~" / ucschar
+	r := p.current()
+	if isAlpha(r) || isDigit(r) || r == '-' || r == '.' || r == '_' || r == '~' {
+		return nil
+	}
+	if uErr := p.ucschar(); uErr != nil {
+		return uErr
+	}
+	return newIriError(p, "Invalid iunreserved value")
+}
+
 func (p *parser) ucschar() error {
 	r := p.current()
 	if (r >= 0xa0 && r <= 0xd7ff) ||
@@ -95,21 +107,13 @@ func (p *parser) ucschar() error {
 		(r >= 0xe0000 && r <= 0xefffd) {
 		return nil
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
-	}
 	return newIriError(p, fmt.Sprintf("Invalid ucschar value %c", p.current()))
-
-	return nil
 }
 
 func (p *parser) iprivate() error {
 	r := p.current()
 	if (r >= 0xe000 && r <= 0xf8ff) || (r >= 0xf0000 && r <= 0xffffd) || (r >= 0x100000 && r <= 0x10fff8) {
 		return nil
-	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
 	}
 	return newIriError(p, fmt.Sprintf("Invalid iprivate value %c", p.current()))
 }
