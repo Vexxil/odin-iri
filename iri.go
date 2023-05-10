@@ -81,8 +81,35 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) ipathRootless() error {
+	preIndex := p.index
+	if nzErr := p.isegmentNz(); nzErr != nil {
+		p.index = preIndex
+		return nzErr
+	}
+	if !p.next() {
+		return EOIError
+	}
+	preIndex = p.index
+	for {
+		r, rErr := p.current()
+		if rErr != nil {
+			p.index = preIndex
+			return rErr
+		}
+		if r != '/' {
+			p.index = preIndex
+			return newIriError(p, "Invalid ipath-rootless value")
+		}
+		p.isegment()
+		if !p.next() {
+			return nil
+		}
+	}
+}
+
 func (p *parser) ipathEmpty() error {
-	if _, cErr := p.current(); cErr != nil) {
+	if _, cErr := p.current(); cErr != nil {
 		return EOIError
 	}
 	return nil
@@ -173,7 +200,7 @@ func (p *parser) iquery() {
 			continue
 		}
 		p.index = preIndex
-		r,_ := p.current()
+		r, _ := p.current()
 		if r == '/' || r == '?' {
 			continue
 		}
