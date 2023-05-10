@@ -14,6 +14,8 @@ const unreservedSymbols = "-._~"
 const genDelims = ":/?#[]@"
 const subDelims = "!$&'()*+,;="
 
+var EOIError = errors.New("end of input")
+
 type IriError struct {
 	message string
 	index   int
@@ -49,16 +51,19 @@ func newParser(value string) *parser {
 	}
 }
 
-func (p *parser) next() error {
+func (p *parser) next() bool {
 	if p.index+1 == p.length {
-		return newIriError(p, "incomplete IRI")
+		return false
 	}
 	p.index++
-	return nil
+	return true
 }
 
-func (p *parser) current() rune {
-	return p.runes[p.index]
+func (p *parser) current() (rune, error) {
+	if p.index >= p.length {
+		return 0, EOIError
+	}
+	return p.runes[p.index], nil
 }
 
 func (p *parser) peek() (rune, error) {
@@ -76,6 +81,68 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) ipathEmpty() error {
+	if _, cErr := p.current(); cErr != nil) {
+		return EOIError
+	}
+	return nil
+}
+
+func (p *parser) isegment() {
+	preIndex := p.index
+	for {
+		if iErr := p.ipchar(); iErr == nil {
+			continue
+		}
+		p.index = preIndex
+		return
+	}
+}
+
+func (p *parser) isegmentNz() error {
+	i := 0
+	preIndex := p.index
+	for {
+		if iErr := p.ipchar(); iErr == nil {
+			i++
+			preIndex = p.index
+			continue
+		}
+		break
+	}
+	p.index = preIndex
+	if i < 1 {
+		return newIriError(p, "Invalid isegment-nz value")
+	}
+	return nil
+}
+
+func (p *parser) isegmentNzN() error {
+	i := 0
+	for {
+		preIndex := p.index
+		if iuErr := p.iunreserved(); iuErr == nil {
+			i++
+			continue
+		}
+		p.index = preIndex
+		if pctErr := p.pctEncoded(); pctErr == nil {
+			i++
+			continue
+		}
+		p.index = preIndex
+		r, _ := p.current()
+		if isSubDelim(r) || r == '@' {
+			i++
+			continue
+		}
+		if i < 1 {
+			return newIriError(p, "Invalid isegment-nz-nc")
+		}
+		return nil
+	}
+}
+
 func (p *parser) ipchar() error {
 	// iunreserved / pct-encoded / sub-delims / ":" / "@"
 	preIndex := p.index
@@ -87,7 +154,7 @@ func (p *parser) ipchar() error {
 		return nil
 	}
 	p.index = preIndex
-	r := p.current()
+	r, _ := p.current()
 	if isSubDelim(r) || r == ':' || r == '@' {
 		p.next()
 		return nil
@@ -106,7 +173,7 @@ func (p *parser) iquery() {
 			continue
 		}
 		p.index = preIndex
-		r := p.current()
+		r,_ := p.current()
 		if r == '/' || r == '?' {
 			continue
 		}
@@ -121,7 +188,7 @@ func (p *parser) ifragment() {
 			continue
 		}
 		p.index = preIndex
-		r := p.current()
+		r, _ := p.current()
 		if r == '/' || r == '?' {
 			continue
 		}
@@ -131,8 +198,11 @@ func (p *parser) ifragment() {
 
 func (p *parser) iunreserved() error {
 	//ALPHA / DIGIT / "-" / "." / "_" / "~" / ucschar
-	r := p.current()
+	r, _ := p.current()
 	if isAlpha(r) || isDigit(r) || r == '-' || r == '.' || r == '_' || r == '~' {
+		if !p.next() {
+			return EOIError
+		}
 		return nil
 	}
 	if uErr := p.ucschar(); uErr != nil {
@@ -142,7 +212,7 @@ func (p *parser) iunreserved() error {
 }
 
 func (p *parser) ucschar() error {
-	r := p.current()
+	r, _ := p.current()
 	if (r >= 0xa0 && r <= 0xd7ff) ||
 		(r >= 0x10000 && r <= 0x1fffd) ||
 		(r >= 0x20000 && r <= 0x2fffd) ||
@@ -160,26 +230,29 @@ func (p *parser) ucschar() error {
 		(r >= 0xe0000 && r <= 0xefffd) {
 		return nil
 	}
-	return newIriError(p, fmt.Sprintf("Invalid ucschar value %c", p.current()))
+	return newIriError(p, fmt.Sprintf("Invalid ucschar value %c", r))
 }
 
 func (p *parser) iprivate() error {
-	r := p.current()
+	r, _ := p.current()
 	if (r >= 0xe000 && r <= 0xf8ff) || (r >= 0xf0000 && r <= 0xffffd) || (r >= 0x100000 && r <= 0x10fff8) {
 		return nil
 	}
-	return newIriError(p, fmt.Sprintf("Invalid iprivate value %c", p.current()))
+	return newIriError(p, fmt.Sprintf("Invalid iprivate value %c", r))
 }
 
 func (p *parser) schema() error {
-	if !isAlpha(p.current()) {
+	r, _ := p.current()
+	if !isAlpha(r) {
 		return newIriError(p, "Schema must start with alpha")
 	}
-	p.next()
+	if !p.next() {
+		return EOIError
+	}
 	for {
-		c := p.current()
-		if isAlpha(c) || isDigit(c) || c == '+' || c == '-' || c == '.' {
-			if nErr := p.next(); nErr != nil {
+		r, _ = p.current()
+		if isAlpha(r) || isDigit(r) || r == '+' || r == '-' || r == '.' {
+			if !p.next() {
 				return nil
 			}
 			continue
@@ -193,10 +266,11 @@ func (p *parser) port() error {
 	count := 0
 	digits := make([]rune, 0)
 	for {
-		if isDigit(p.current()) {
-			digits = append(digits, p.current())
+		r, _ := p.current()
+		if isDigit(r) {
+			digits = append(digits, r)
 			count++
-			if pErr := p.next(); pErr == nil {
+			if p.next() {
 				continue
 			}
 		}
@@ -218,10 +292,13 @@ func (p *parser) port() error {
 }
 
 func (p *parser) ipLiteral() error {
-	if p.current() != '[' {
+	r, _ := p.current()
+	if r != '[' {
 		return newIriError(p, "Missing starting '[' ip literal")
 	}
-	p.next()
+	if !p.next() {
+		return EOIError
+	}
 	preIndex := p.index
 	if ipv6Err := p.ipv6Address(); ipv6Err == nil {
 		return nil
@@ -230,8 +307,11 @@ func (p *parser) ipLiteral() error {
 	if ipvfErr := p.ipvFuture(); ipvfErr != nil {
 		return newIriError(p, "Invalid ipv6 or ipv future for ip literal")
 	}
-	p.next()
-	if p.current() != ']' {
+	if !p.next() {
+		return EOIError
+	}
+	r, _ = p.current()
+	if r != ']' {
 		return newIriError(p, "Missing ending ']' ip literal")
 	}
 	p.next()
@@ -239,7 +319,8 @@ func (p *parser) ipLiteral() error {
 }
 
 func (p *parser) ipvFuture() error {
-	if p.current() != 'v' {
+	r, _ := p.current()
+	if r != 'v' {
 		return newIriError(p, "IpvFuture must start with 'v'")
 	}
 	h16Count := 0
@@ -254,16 +335,20 @@ func (p *parser) ipvFuture() error {
 		}
 		break
 	}
-	if p.current() != '.' {
+	r, _ = p.current()
+	if r != '.' {
 		return newIriError(p, "Invalid IpvFuture")
 	}
 	p.next()
 	postCount := 0
 	for {
-		if isUnreserved(p.current()) || isSubDelim(p.current()) || p.current() == ':' {
+		r, _ = p.current()
+		if isUnreserved(r) || isSubDelim(r) || r == ':' {
 			postCount++
-			if pNext := p.next(); pNext == nil {
+			if p.next() {
 				continue
+			} else {
+				return EOIError
 			}
 		}
 		if postCount < 1 {
@@ -280,7 +365,8 @@ func (p *parser) ipv6Address() error {
 	prevColon := false
 
 	for {
-		if p.current() == ':' {
+		r, _ := p.current()
+		if r == ':' {
 			if prevColon {
 				groupCount++
 				zeroCollaps = true
@@ -298,8 +384,8 @@ func (p *parser) ipv6Address() error {
 		if groupCount == 8 {
 			break
 		}
-		if nErr := p.next(); nErr != nil {
-			return nErr
+		if p.next() {
+			return EOIError
 		}
 	}
 	p.next()
@@ -315,14 +401,15 @@ func (p *parser) ls32() error {
 	if h16Err := p.h16(); h16Err != nil {
 		return h16Err
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
+	if !p.next() {
+		return EOIError
 	}
-	if p.current() != ':' {
+	r, _ := p.current()
+	if r != ':' {
 		return newIriError(p, "invalid ls32 value")
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
+	if !p.next() {
+		return EOIError
 	}
 	if h16Err := p.h16(); h16Err != nil {
 		return h16Err
@@ -331,7 +418,8 @@ func (p *parser) ls32() error {
 }
 
 func (p *parser) h16() error {
-	if !isHexDigit(p.current()) {
+	r, _ := p.current()
+	if !isHexDigit(r) {
 		return newIriError(p, "invalid h16 value")
 	}
 	hexCount := 1
@@ -341,7 +429,9 @@ func (p *parser) h16() error {
 			return nil
 		}
 		if isHexDigit(pv) {
-			p.next()
+			if !p.next() {
+				return EOIError
+			}
 			hexCount++
 		} else {
 			break
@@ -360,14 +450,15 @@ func (p *parser) ipv4Address() error {
 		if octCount == 4 {
 			break
 		}
-		if nErr := p.next(); nErr != nil {
-			return nErr
+		if !p.next() {
+			return EOIError
 		}
-		if p.current() != '.' {
+		r, _ := p.current()
+		if r != '.' {
 			return newIriError(p, "invalid ipv4 address")
 		}
-		if nErr := p.next(); nErr != nil {
-			return nErr
+		if !p.next() {
+			return EOIError
 		}
 	}
 	return nil
@@ -375,16 +466,18 @@ func (p *parser) ipv4Address() error {
 
 func (p *parser) decOctet() error {
 	octetRunes := make([]rune, 0)
-	if !isDigit(p.current()) {
+	r, _ := p.current()
+	if !isDigit(r) {
 		return newIriError(p, "invalid decimal octet")
 	}
-	octetRunes = append(octetRunes, p.current())
+	octetRunes = append(octetRunes, r)
 	peek, peekErr := p.peek()
 	if peekErr != nil || !isDigit(peek) {
 		return nil
 	}
 	p.next()
-	octetRunes = append(octetRunes, p.current())
+	r, _ = p.current()
+	octetRunes = append(octetRunes, r)
 	d, _ := strconv.Atoi(string(octetRunes))
 	if d < 10 {
 		return newIriError(p, "invalid octet value")
@@ -394,7 +487,8 @@ func (p *parser) decOctet() error {
 		return nil
 	}
 	p.next()
-	octetRunes = append(octetRunes, p.current())
+	r, _ = p.current()
+	octetRunes = append(octetRunes, r)
 	d, _ = strconv.Atoi(string(octetRunes))
 	if d < 100 || d > 255 {
 		return newIriError(p, "invalid octet value")
@@ -406,32 +500,39 @@ func (p *parser) decOctet() error {
 	if isDigit(peek) {
 		return newIriError(p, "invalid octet value")
 	}
+	if !p.next() {
+		return EOIError
+	}
 	return nil
 }
 
 func (p *parser) pctEncoded() error {
-	if p.current() != '%' {
+	if r, _ := p.current(); r != '%' {
 		return newIriError(p, "invalid pct encoding")
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
+	if !p.next() {
+		return EOIError
 	}
-	if !isHexDigit(p.current()) {
+	if r, _ := p.current(); !isHexDigit(r) {
 		return newIriError(p, "invalid pct encoding")
 	}
-	if nErr := p.next(); nErr != nil {
-		return nErr
+	if !p.next() {
+		return EOIError
 	}
-	if !isHexDigit(p.current()) {
+	if r, _ := p.current(); !isHexDigit(r) {
 		return newIriError(p, "invalid pct encoding")
+	}
+	if !p.next() {
+		return EOIError
 	}
 	return nil
 }
 
 func newIriError(p *parser, message string) IriError {
+	r, _ := p.current()
 	return IriError{
 		index:   p.index,
-		char:    p.current(),
+		char:    r,
 		message: message,
 	}
 }
