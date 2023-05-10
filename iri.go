@@ -76,6 +76,17 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) iprivate() error {
+	r := p.current()
+	if (r >= 0xe000 && r <= 0xf8ff) || (r >= 0xf0000 && r <= 0xffffd) || (r >= 0x100000 && r <= 0x10fff8) {
+		return nil
+	}
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
+	return newIriError(p, fmt.Sprintf("Invalid iprivate value %c", p.current()))
+}
+
 func (p *parser) schema() error {
 	if !isAlpha(p.current()) {
 		return newIriError(p, "Schema must start with alpha")

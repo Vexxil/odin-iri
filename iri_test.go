@@ -264,3 +264,25 @@ func TestSchema(t *testing.T) {
 		}
 	}
 }
+
+func TestIPrivate(t *testing.T) {
+	// TODO: Not sure how to test this...
+	failSet := []string{}
+	goodSet := []string{}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.schema(); err == nil {
+			t.Fatalf("schema should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.schema(); err != nil {
+			t.Fatalf("schema should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
