@@ -76,6 +76,59 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) ipchar() error {
+	// iunreserved / pct-encoded / sub-delims / ":" / "@"
+	preIndex := p.index
+	if iErr := p.iunreserved(); iErr == nil {
+		return nil
+	}
+	p.index = preIndex
+	if pctErr := p.pctEncoded(); pctErr == nil {
+		return nil
+	}
+	p.index = preIndex
+	r := p.current()
+	if isSubDelim(r) || r == ':' || r == '@' {
+		p.next()
+		return nil
+	}
+	return newIriError(p, "Invalid ipchar value")
+}
+
+func (p *parser) iquery() {
+	for {
+		preIndex := p.index
+		if iErr := p.ipchar(); iErr == nil {
+			continue
+		}
+		p.index = preIndex
+		if iErr := p.iprivate(); iErr == nil {
+			continue
+		}
+		p.index = preIndex
+		r := p.current()
+		if r == '/' || r == '?' {
+			continue
+		}
+		return
+	}
+}
+
+func (p *parser) ifragment() {
+	for {
+		preIndex := p.index
+		if iErr := p.ipchar(); iErr == nil {
+			continue
+		}
+		p.index = preIndex
+		r := p.current()
+		if r == '/' || r == '?' {
+			continue
+		}
+		return
+	}
+}
+
 func (p *parser) iunreserved() error {
 	//ALPHA / DIGIT / "-" / "." / "_" / "~" / ucschar
 	r := p.current()
