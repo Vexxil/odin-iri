@@ -273,16 +273,38 @@ func TestIPrivate(t *testing.T) {
 	for _, v := range failSet {
 		p := newParser(v)
 		p.next()
-		if err := p.schema(); err == nil {
-			t.Fatalf("schema should have failed with %s", v)
+		if err := p.iprivate(); err == nil {
+			t.Fatalf("iprivate should have failed with %s", v)
 		}
 	}
 
 	for _, v := range goodSet {
 		p := newParser(v)
 		p.next()
-		if err := p.schema(); err != nil {
-			t.Fatalf("schema should succeed with '%s': %s", v, err.Error())
+		if err := p.iprivate(); err != nil {
+			t.Fatalf("iprivate should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
+
+func TestUCSChar(t *testing.T) {
+	// TODO: Not sure how to test this...
+	failSet := []string{}
+	goodSet := []string{}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ucschar(); err == nil {
+			t.Fatalf("ucschar should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.ucschar(); err != nil {
+			t.Fatalf("ucschar should succeed with '%s': %s", v, err.Error())
 		}
 	}
 }

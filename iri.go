@@ -76,6 +76,33 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) ucschar() error {
+	r := p.current()
+	if (r >= 0xa0 && r <= 0xd7ff) ||
+		(r >= 0x10000 && r <= 0x1fffd) ||
+		(r >= 0x20000 && r <= 0x2fffd) ||
+		(r >= 0x30000 && r <= 0x3fffd) ||
+		(r >= 0x40000 && r <= 0x4fffd) ||
+		(r >= 0x50000 && r <= 0x5fffd) ||
+		(r >= 0x60000 && r <= 0x6fffd) ||
+		(r >= 0x70000 && r <= 0x7fffd) ||
+		(r >= 0x80000 && r <= 0x8fffd) ||
+		(r >= 0x90000 && r <= 0x9fffd) ||
+		(r >= 0xa0000 && r <= 0xafffd) ||
+		(r >= 0xb0000 && r <= 0xbfffd) ||
+		(r >= 0xc0000 && r <= 0xcfffd) ||
+		(r >= 0xd0000 && r <= 0xdfffd) ||
+		(r >= 0xe0000 && r <= 0xefffd) {
+		return nil
+	}
+	if nErr := p.next(); nErr != nil {
+		return nErr
+	}
+	return newIriError(p, fmt.Sprintf("Invalid ucschar value %c", p.current()))
+
+	return nil
+}
+
 func (p *parser) iprivate() error {
 	r := p.current()
 	if (r >= 0xe000 && r <= 0xf8ff) || (r >= 0xf0000 && r <= 0xffffd) || (r >= 0x100000 && r <= 0x10fff8) {
