@@ -76,6 +76,24 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) schema() error {
+	if !isAlpha(p.current()) {
+		return newIriError(p, "Schema must start with alpha")
+	}
+	p.next()
+	for {
+		c := p.current()
+		if isAlpha(c) || isDigit(c) || c == '+' || c == '-' || c == '.' {
+			if nErr := p.next(); nErr != nil {
+				return nil
+			}
+			continue
+		}
+		break
+	}
+	return nil
+}
+
 func (p *parser) port() error {
 	count := 0
 	digits := make([]rune, 0)

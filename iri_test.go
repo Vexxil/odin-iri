@@ -243,3 +243,24 @@ func TestPort(t *testing.T) {
 		}
 	}
 }
+
+func TestSchema(t *testing.T) {
+	failSet := []string{"+go"}
+	goodSet := []string{"http", "tls", "rpc14"}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.schema(); err == nil {
+			t.Fatalf("schema should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.schema(); err != nil {
+			t.Fatalf("schema should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
