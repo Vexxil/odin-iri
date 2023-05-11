@@ -81,6 +81,357 @@ func (p *parser) parse() (IRI, error) {
 	panic("not implemented")
 }
 
+func (p *parser) iri() error {
+	if err := p.schema(); err != nil {
+		return err
+	}
+	r, _ := p.current()
+	if r != ':' {
+		return newIriError(p, "iri missing ':' after schema")
+	}
+	if !p.next() {
+		return EOIError
+	}
+	if err := p.ihierPart(); err != nil {
+		return err
+	}
+	r, _ = p.current()
+	if r == '?' {
+		if !p.next() {
+			return EOIError
+		}
+		p.iquery()
+		return nil
+	} else if r == '#' {
+		if !p.next() {
+			return EOIError
+		}
+		p.ifragment()
+		return nil
+	}
+	return nil
+}
+
+func (p *parser) ihierPart() error {
+	preIndex := p.index
+	r, _ := p.current()
+	pr, prErr := p.peek()
+	if prErr == nil {
+		if r == '/' && pr == '/' {
+			p.next()
+			if !p.next() {
+				return EOIError
+			}
+			if authErr := p.iauthority(); authErr == nil {
+				if eErr := p.ipathAbEmpty(); eErr == nil {
+					if !p.next() {
+						return EOIError
+					}
+					return nil
+				}
+			}
+		}
+	}
+	p.index = preIndex
+	if err := p.ipathAbsolute(); err == nil {
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	p.index = preIndex
+	if err := p.ipathRootless(); err == nil {
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	p.index = preIndex
+	if err := p.ipathEmpty(); err != nil {
+		return newIriError(p, "Invalid irelative-part value")
+	}
+	return nil
+}
+
+func (p *parser) iriReference() error {
+	preIndex := p.index
+	if err := p.iri(); err == nil {
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	p.index = preIndex
+	if err := p.irelativePart(); err == nil {
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	return newIriError(p, "Invalid iri-reference value")
+}
+
+func (p *parser) absoluteIri() error {
+	if err := p.schema(); err != nil {
+		return err
+	}
+	r, _ := p.current()
+	if r != ':' {
+		return newIriError(p, "absolute-iri missing ':'")
+	}
+	if !p.next() {
+		return EOIError
+	}
+	if err := p.ihierPart(); err != nil {
+		return err
+	}
+	r, _ = p.current()
+	if r == '?' {
+		if p.next() {
+			p.iquery()
+		}
+	}
+	r, _ = p.current()
+	if r == '#' {
+		if !p.next() {
+			return EOIError
+		}
+		p.ifragment()
+	}
+	return nil
+}
+
+func (p *parser) irelativePart() error {
+	preIndex := p.index
+	r, _ := p.current()
+	pr, prErr := p.peek()
+	if prErr == nil {
+		if r == '/' && pr == '/' {
+			p.next()
+			if !p.next() {
+				return EOIError
+			}
+			if authErr := p.iauthority(); authErr == nil {
+				if eErr := p.ipathAbEmpty(); eErr == nil {
+					if !p.next() {
+						return EOIError
+					}
+					return nil
+				}
+			}
+		}
+	}
+	p.index = preIndex
+	if err := p.ipathAbsolute(); err == nil {
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	p.index = preIndex
+	if err := p.ipathNoSchema(); err == nil {
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	p.index = preIndex
+	if err := p.ipathEmpty(); err != nil {
+		return newIriError(p, "Invalid irelative-part value")
+	}
+	return nil
+}
+
+func (p *parser) iauthority() error {
+	preIndex := p.index
+	if err := p.iuserInfo(); err == nil {
+		r, _ := p.current()
+		if r == '@' {
+			if !p.next() {
+				return EOIError
+			}
+			return nil
+		}
+	}
+	p.index = preIndex
+	if err := p.ihost; err != nil {
+		return newIriError(p, "Invalid iauthority value")
+	}
+	r, _ := p.current()
+	preIndex = p.index
+	if r != ':' {
+		return nil
+	}
+	if err := p.port(); err == nil {
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	p.index = preIndex
+	return nil
+}
+
+func (p *parser) iuserInfo() error {
+	for {
+		preIndex := p.index
+		if err := p.iunreserved(); err == nil {
+			if !p.next() {
+				return EOIError
+			}
+			continue
+		}
+		p.index = preIndex
+		if err := p.pctEncoded(); err == nil {
+			if !p.next() {
+				return EOIError
+			}
+			continue
+		}
+		p.index = preIndex
+		r, _ := p.current()
+		if isSubDelim(r) {
+			if !p.next() {
+				return EOIError
+			}
+			continue
+		}
+		if r == ':' {
+			if !p.next() {
+				return EOIError
+			}
+			continue
+		}
+		return nil
+	}
+}
+
+func (p *parser) ihost() {
+	preIndex := p.index
+	if err := p.ipLiteral(); err == nil {
+		return
+	}
+	p.index = preIndex
+	if err := p.ipv4Address(); err == nil {
+		return
+	}
+	p.index = preIndex
+	p.iregName()
+}
+
+func (p *parser) iregName() {
+	preIndex := p.index
+	for {
+		if err := p.iunreserved(); err != nil {
+			p.index = preIndex
+			return
+		}
+		if err := p.pctEncoded(); err != nil {
+			p.index = preIndex
+			return
+		}
+		r, _ := p.current()
+		if !isSubDelim(r) {
+			return
+		}
+	}
+}
+
+func (p *parser) ipath() error {
+	if err := p.ipathAbEmpty(); err == nil {
+		return nil
+	}
+	if err := p.ipathAbsolute(); err == nil {
+		return nil
+	}
+	if err := p.ipathNoSchema(); err == nil {
+		return nil
+	}
+	if err := p.ipathRootless(); err == nil {
+		return nil
+	}
+	if err := p.ipathEmpty(); err == nil {
+		// Technically, the grammar shouldn't allow for this...
+		return newIriError(p, "Invalid ipath")
+	}
+	return nil
+}
+
+func (p *parser) ipathAbEmpty() error {
+	for {
+		preIndex := p.index
+		r, _ := p.current()
+		if r != '/' {
+			if !p.next() {
+				return EOIError
+			}
+			return nil
+		}
+		if !p.next() {
+			return EOIError
+		}
+		if err := p.isegment; err != nil {
+			p.index = preIndex
+			return nil
+		}
+	}
+}
+
+func (p *parser) ipathAbsolute() error {
+	r, _ := p.current()
+	if r != '/' {
+		return newIriError(p, "ipath-absolute must start with '/'")
+	}
+	preIndex := p.index
+	if err := p.isegmentNz(); err != nil {
+		p.index = preIndex
+		if !p.next() {
+			return EOIError
+		}
+		return nil
+	}
+	for {
+		preIndex = p.index
+		r, _ = p.current()
+		if r != '/' {
+			if !p.next() {
+				return EOIError
+			}
+			return nil
+		}
+		if !p.next() {
+			return EOIError
+		}
+		if err := p.isegment; err != nil {
+			p.index = preIndex
+			return nil
+		}
+	}
+}
+
+func (p *parser) ipathNoSchema() error {
+	if err := p.isegmentNzNc(); err != nil {
+		return err
+	}
+	for {
+		preIndex := p.index
+		r, _ := p.current()
+		if r != '/' {
+			if !p.next() {
+				return EOIError
+			}
+			return nil
+		}
+		if !p.next() {
+			return EOIError
+		}
+		if err := p.isegment; err != nil {
+			p.index = preIndex
+			return nil
+		}
+	}
+}
+
 func (p *parser) ipathRootless() error {
 	preIndex := p.index
 	if nzErr := p.isegmentNz(); nzErr != nil {
@@ -144,7 +495,7 @@ func (p *parser) isegmentNz() error {
 	return nil
 }
 
-func (p *parser) isegmentNzN() error {
+func (p *parser) isegmentNzNc() error {
 	i := 0
 	for {
 		preIndex := p.index
