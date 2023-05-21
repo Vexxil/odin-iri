@@ -26,28 +26,32 @@ func (i IriError) Error() string {
 	return fmt.Sprintf("index: %d, char: %c, message: %s", i.index, i.char, i.message)
 }
 
-func ParseIri(value string) (IRI, error) {
+func ParseIri(value string) (*IRI, error) {
 	p := newParser(value)
 	return p.parse()
 }
 
-type IRI interface {
-}
-
-type iri struct {
+type IRI struct {
+	Schema    string
+	Authority string
+	Path      string
+	Query     string
+	Fragment  string
 }
 
 type parser struct {
-	runes  []rune
-	index  int
-	length int
+	runes    []rune
+	index    int
+	length   int
+	instance IRI
 }
 
 func newParser(value string) *parser {
 	return &parser{
-		runes:  bytes.Runes([]byte(value)),
-		index:  -1,
-		length: len(value),
+		runes:    bytes.Runes([]byte(value)),
+		index:    -1,
+		length:   len(value),
+		instance: IRI{},
 	}
 }
 
@@ -77,8 +81,11 @@ func (p *parser) setIndex(index int) {
 	p.index = index
 }
 
-func (p *parser) parse() (IRI, error) {
-	panic("not implemented")
+func (p *parser) parse() (*IRI, error) {
+	if iErr := p.iri(); iErr != nil {
+		return nil, iErr
+	}
+	return &p.instance, nil
 }
 
 func (p *parser) iri() error {
@@ -243,6 +250,7 @@ func (p *parser) irelativePart() error {
 }
 
 func (p *parser) iauthority() error {
+	authStart := p.index
 	preIndex := p.index
 	if err := p.iuserInfo(); err == nil {
 		r, _ := p.current()
@@ -250,25 +258,22 @@ func (p *parser) iauthority() error {
 			if !p.next() {
 				return EOIError
 			}
-			return nil
+		} else {
+			p.index = preIndex
 		}
+	} else {
+		p.index = preIndex
 	}
-	p.index = preIndex
-	if err := p.ihost; err != nil {
-		return newIriError(p, "Invalid iauthority value")
-	}
+	p.ihost()
 	r, _ := p.current()
 	preIndex = p.index
-	if r != ':' {
-		return nil
-	}
-	if err := p.port(); err == nil {
-		if !p.next() {
-			return EOIError
+	if r == ':' {
+		if err := p.port(); err != nil {
+			p.index = preIndex
 		}
-		return nil
 	}
-	p.index = preIndex
+	authRunes := p.runes[authStart:p.index]
+	p.instance.Authority = string(authRunes)
 	return nil
 }
 
@@ -320,18 +325,19 @@ func (p *parser) ihost() {
 }
 
 func (p *parser) iregName() {
-	preIndex := p.index
 	for {
+		preIndex := p.index
 		if err := p.iunreserved(); err != nil {
 			p.index = preIndex
-			return
+			if err = p.pctEncoded(); err != nil {
+				p.index = preIndex
+				r, _ := p.current()
+				if !isSubDelim(r) {
+					return
+				}
+			}
 		}
-		if err := p.pctEncoded(); err != nil {
-			p.index = preIndex
-			return
-		}
-		r, _ := p.current()
-		if !isSubDelim(r) {
+		if !p.next() {
 			return
 		}
 	}
@@ -620,17 +626,21 @@ func (p *parser) iprivate() error {
 }
 
 func (p *parser) schema() error {
+	schemaRunes := make([]rune, 0)
 	r, _ := p.current()
 	if !isAlpha(r) {
 		return newIriError(p, "Schema must start with alpha")
 	}
+	schemaRunes = append(schemaRunes, r)
 	if !p.next() {
 		return EOIError
 	}
 	for {
 		r, _ = p.current()
 		if isAlpha(r) || isDigit(r) || r == '+' || r == '-' || r == '.' {
+			schemaRunes = append(schemaRunes, r)
 			if !p.next() {
+				p.instance.Schema = string(schemaRunes)
 				return nil
 			}
 			continue
