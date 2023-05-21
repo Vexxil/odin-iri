@@ -311,7 +311,7 @@ func TestUCSChar(t *testing.T) {
 	}
 }
 
-func TestParseIri(t *testing.T) {
+func TestIri(t *testing.T) {
 	failSet := []string{}
 	goodSet := []string{
 		"ftp://ftp.is.co.za/rfc/rfc1808.txt",
@@ -339,4 +339,7 @@ func TestParseIri(t *testing.T) {
 			t.Fatalf("ucschar should succeed with '%s': %s", v, err.Error())
 		}
 	}
+}
+
+func TestParseIri(t *testing.T) {
 }

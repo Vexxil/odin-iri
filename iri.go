@@ -344,22 +344,25 @@ func (p *parser) iregName() {
 }
 
 func (p *parser) ipath() error {
-	if err := p.ipathAbEmpty(); err == nil {
-		return nil
+	pathStart := p.index
+	preIndex := p.index
+	if err := p.ipathAbEmpty(); err != nil {
+		p.index = preIndex
+		if err := p.ipathAbsolute(); err != nil {
+			p.index = preIndex
+			if err := p.ipathNoSchema(); err != nil {
+				p.index = preIndex
+				if err := p.ipathRootless(); err != nil {
+					p.index = preIndex
+					if err := p.ipathEmpty(); err != nil {
+						// Technically, the grammar shouldn't allow for this...
+						return newIriError(p, "Invalid ipath")
+					}
+				}
+			}
+		}
 	}
-	if err := p.ipathAbsolute(); err == nil {
-		return nil
-	}
-	if err := p.ipathNoSchema(); err == nil {
-		return nil
-	}
-	if err := p.ipathRootless(); err == nil {
-		return nil
-	}
-	if err := p.ipathEmpty(); err == nil {
-		// Technically, the grammar shouldn't allow for this...
-		return newIriError(p, "Invalid ipath")
-	}
+	p.instance.Path = string(p.runes[pathStart:p.index])
 	return nil
 }
 
@@ -547,8 +550,10 @@ func (p *parser) ipchar() error {
 }
 
 func (p *parser) iquery() {
+	startIndex := p.index
 	for {
 		preIndex := p.index
+
 		if iErr := p.ipchar(); iErr == nil {
 			continue
 		}
@@ -561,11 +566,13 @@ func (p *parser) iquery() {
 		if r == '/' || r == '?' {
 			continue
 		}
+		p.instance.Query = string(p.runes[startIndex:p.index])
 		return
 	}
 }
 
 func (p *parser) ifragment() {
+	startIndex := p.index
 	for {
 		preIndex := p.index
 		if iErr := p.ipchar(); iErr == nil {
@@ -576,6 +583,7 @@ func (p *parser) ifragment() {
 		if r == '/' || r == '?' {
 			continue
 		}
+		p.instance.Fragment = string(p.runes[startIndex:p.index])
 		return
 	}
 }
