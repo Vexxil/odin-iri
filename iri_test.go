@@ -36,7 +36,9 @@ func TestPctEncoded(t *testing.T) {
 		p := newParser(v)
 		p.next()
 		if err := p.pctEncoded(); err != nil {
-			t.Fatalf("pctEncoded should succeed with '%s': %s", v, err.Error())
+			if err != EOIError {
+				t.Fatalf("pctEncoded should succeed with '%s': %s", v, err.Error())
+			}
 		}
 	}
 }
@@ -70,7 +72,7 @@ func TestDecOctet(t *testing.T) {
 	for _, v := range goodSet {
 		p := newParser(v)
 		p.next()
-		if err := p.decOctet(); err != nil {
+		if err := p.decOctet(); err != nil && err != EOIError {
 			t.Fatalf("decOctet should succeed with '%s': %s", v, err.Error())
 		}
 	}
@@ -196,7 +198,7 @@ func TestIpvFutures(t *testing.T) {
 	for _, v := range goodSet {
 		p := newParser(v)
 		p.next()
-		if err := p.ipvFuture(); err != nil {
+		if err := p.ipvFuture(); err != nil && err != EOIError {
 			t.Fatalf("ipvFuture should succeed with '%s': %s", v, err.Error())
 		}
 	}
@@ -217,7 +219,7 @@ func TestIpLiteral(t *testing.T) {
 	for _, v := range goodSet {
 		p := newParser(v)
 		p.next()
-		if err := p.ipLiteral(); err != nil {
+		if err := p.ipLiteral(); err != nil && err != EOIError {
 			t.Fatalf("ipLiteral should succeed with '%s': %s", v, err.Error())
 		}
 	}
@@ -304,6 +306,36 @@ func TestUCSChar(t *testing.T) {
 		p := newParser(v)
 		p.next()
 		if err := p.ucschar(); err != nil {
+			t.Fatalf("ucschar should succeed with '%s': %s", v, err.Error())
+		}
+	}
+}
+
+func TestParseIri(t *testing.T) {
+	failSet := []string{}
+	goodSet := []string{
+		"ftp://ftp.is.co.za/rfc/rfc1808.txt",
+		"http://www.ietf.org/rfc/rfc2396.txt",
+		"ldap://[2001:db8::7]/c=GB?objectClass?one",
+		"mailto:John.Doe@example.com",
+		"news:comp.infosystems.www.servers.unix",
+		"tel:+1-816-555-1212",
+		"telnet://192.0.2.16:80/",
+		"urn:oasis:names:specification:docbook:dtd:xml:4.1.2",
+	}
+
+	for _, v := range failSet {
+		p := newParser(v)
+		p.next()
+		if err := p.iri(); err == nil {
+			t.Fatalf("ucschar should have failed with %s", v)
+		}
+	}
+
+	for _, v := range goodSet {
+		p := newParser(v)
+		p.next()
+		if err := p.iri(); err != nil {
 			t.Fatalf("ucschar should succeed with '%s': %s", v, err.Error())
 		}
 	}

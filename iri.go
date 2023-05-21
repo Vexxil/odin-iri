@@ -762,7 +762,7 @@ func (p *parser) ipv6Address() error {
 		if groupCount == 8 {
 			break
 		}
-		if p.next() {
+		if !p.next() {
 			return EOIError
 		}
 	}
@@ -821,15 +821,13 @@ func (p *parser) h16() error {
 func (p *parser) ipv4Address() error {
 	octCount := 0
 	for octCount < 4 {
-		if oErr := p.decOctet(); oErr != nil {
+		oErr := p.decOctet()
+		if oErr != nil && oErr != EOIError {
 			return oErr
 		}
 		octCount++
 		if octCount == 4 {
 			break
-		}
-		if !p.next() {
-			return EOIError
 		}
 		r, _ := p.current()
 		if r != '.' {
@@ -851,9 +849,16 @@ func (p *parser) decOctet() error {
 	octetRunes = append(octetRunes, r)
 	peek, peekErr := p.peek()
 	if peekErr != nil || !isDigit(peek) {
+		if len(octetRunes) == 1 {
+			if !p.next() {
+				return EOIError
+			}
+		}
 		return nil
 	}
-	p.next()
+	if !p.next() {
+		return EOIError
+	}
 	r, _ = p.current()
 	octetRunes = append(octetRunes, r)
 	d, _ := strconv.Atoi(string(octetRunes))
@@ -862,9 +867,16 @@ func (p *parser) decOctet() error {
 	}
 	peek, peekErr = p.peek()
 	if peekErr != nil || !isDigit(peek) {
+		if len(octetRunes) == 2 {
+			if !p.next() {
+				return EOIError
+			}
+		}
 		return nil
 	}
-	p.next()
+	if !p.next() {
+		return EOIError
+	}
 	r, _ = p.current()
 	octetRunes = append(octetRunes, r)
 	d, _ = strconv.Atoi(string(octetRunes))
@@ -873,6 +885,11 @@ func (p *parser) decOctet() error {
 	}
 	peek, peekErr = p.peek()
 	if peekErr != nil {
+		if len(octetRunes) == 1 {
+			if !p.next() {
+				return EOIError
+			}
+		}
 		return nil
 	}
 	if isDigit(peek) {
