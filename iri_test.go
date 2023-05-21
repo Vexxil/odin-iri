@@ -342,4 +342,45 @@ func TestIri(t *testing.T) {
 }
 
 func TestParseIri(t *testing.T) {
+	iri, err := ParseIri("ftp://ftp.is.co.za/rfc/rfc1808.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if iri.Scheme != "ftp" {
+		t.Fatalf("scheme should be 'ftp', got '%s'", iri.Scheme)
+	}
+	if iri.Authority != "ftp.is.co.za" {
+		t.Fatalf("authority should be 'ftp.is.co.za', got '%s'", iri.Authority)
+	}
+	if iri.Path != "/rfc/rfc1808.txt" {
+		t.Fatalf("path should be '/rfc/rfc1808.txt', got '%s'", iri.Path)
+	}
+	if iri.Fragment != "" {
+		t.Fatalf("no fragement should exists, got '%s'", iri.Fragment)
+	}
+	if iri.Query != "" {
+		t.Fatalf("no query should exists, got '%s'", iri.Query)
+	}
+
+	iri, err = ParseIri("ldap://[2001:db8::7]/c=GB?objectClass?one")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if iri.Scheme != "ldap" {
+		t.Fatalf("scheme should be 'ldap', got '%s'", iri.Scheme)
+	}
+	if iri.Authority != "[2001:db8::7]" {
+		t.Fatalf("authority should be '[2001:db8::7]', got '%s'", iri.Authority)
+	}
+	if iri.Path != "/c=GB" {
+		t.Fatalf("path should be '/c=GB', got '%s'", iri.Path)
+	}
+	if iri.Fragment != "" {
+		t.Fatalf("no fragement should exists, got '%s'", iri.Fragment)
+	}
+	if iri.Query != "objectClass?one" {
+		t.Fatalf("query should be '?objectClass?one', got '%s'", iri.Query)
+	}
+
 }

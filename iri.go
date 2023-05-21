@@ -28,11 +28,12 @@ func (i IriError) Error() string {
 
 func ParseIri(value string) (*IRI, error) {
 	p := newParser(value)
+	p.next()
 	return p.parse()
 }
 
 type IRI struct {
-	Schema    string
+	Scheme    string
 	Authority string
 	Path      string
 	Query     string
@@ -56,11 +57,11 @@ func newParser(value string) *parser {
 }
 
 func (p *parser) next() bool {
-	if p.index+1 == p.length {
-		return false
+	if p.index-1 < p.length {
+		p.index++
+		return true
 	}
-	p.index++
-	return true
+	return false
 }
 
 func (p *parser) current() (rune, error) {
@@ -100,6 +101,9 @@ func (p *parser) iri() error {
 		return EOIError
 	}
 	if err := p.ihierPart(); err != nil {
+		if err == EOIError {
+			return nil
+		}
 		return err
 	}
 	r, _ = p.current()
@@ -131,9 +135,6 @@ func (p *parser) ihierPart() error {
 			}
 			if authErr := p.iauthority(); authErr == nil {
 				if eErr := p.ipathAbEmpty(); eErr == nil {
-					if !p.next() {
-						return EOIError
-					}
 					return nil
 				}
 			}
@@ -367,78 +368,87 @@ func (p *parser) ipath() error {
 }
 
 func (p *parser) ipathAbEmpty() error {
+	startIndex := p.index
 	for {
-		preIndex := p.index
-		r, _ := p.current()
+		r, cErr := p.current()
+		if cErr != nil {
+			break
+		}
 		if r != '/' {
-			if !p.next() {
-				return EOIError
-			}
-			return nil
+			break
 		}
 		if !p.next() {
 			return EOIError
 		}
-		if err := p.isegment; err != nil {
-			p.index = preIndex
-			return nil
+		i := p.index
+		p.isegment()
+		if i == p.index {
+			break
 		}
 	}
+	p.instance.Path = string(p.runes[startIndex:p.index])
+	return nil
 }
 
 func (p *parser) ipathAbsolute() error {
+	startIndex := p.index
 	r, _ := p.current()
 	if r != '/' {
 		return newIriError(p, "ipath-absolute must start with '/'")
 	}
+	if !p.next() {
+		return EOIError
+	}
 	preIndex := p.index
 	if err := p.isegmentNz(); err != nil {
 		p.index = preIndex
-		if !p.next() {
-			return EOIError
-		}
-		return nil
-	}
-	for {
-		preIndex = p.index
-		r, _ = p.current()
-		if r != '/' {
+	} else {
+		for {
+			r, _ = p.current()
+			if r != '/' {
+				break
+			}
 			if !p.next() {
 				return EOIError
 			}
-			return nil
-		}
-		if !p.next() {
-			return EOIError
-		}
-		if err := p.isegment; err != nil {
-			p.index = preIndex
-			return nil
+			i := p.index
+			p.isegment()
+			if i == p.index {
+				break
+			}
 		}
 	}
+	p.instance.Path = string(p.runes[startIndex:p.index])
+	if !p.next() {
+		return EOIError
+	}
+	return nil
 }
 
 func (p *parser) ipathNoSchema() error {
+	startIndex := p.index
 	if err := p.isegmentNzNc(); err != nil {
 		return err
 	}
 	for {
-		preIndex := p.index
 		r, _ := p.current()
 		if r != '/' {
-			if !p.next() {
-				return EOIError
-			}
-			return nil
+			break
 		}
 		if !p.next() {
 			return EOIError
 		}
-		if err := p.isegment; err != nil {
-			p.index = preIndex
-			return nil
+		i := p.index
+		p.isegment()
+		if i == p.index {
+			break
 		}
 	}
+	p.instance.Path = string(p.runes[startIndex:p.index])
+	if !p.next() {
+		return EOIError
+	}
+	return nil
 }
 
 func (p *parser) ipathRootless() error {
@@ -476,8 +486,8 @@ func (p *parser) ipathEmpty() error {
 }
 
 func (p *parser) isegment() {
-	preIndex := p.index
 	for {
+		preIndex := p.index
 		if iErr := p.ipchar(); iErr == nil {
 			continue
 		}
@@ -564,6 +574,9 @@ func (p *parser) iquery() {
 		p.index = preIndex
 		r, _ := p.current()
 		if r == '/' || r == '?' {
+			if !p.next() {
+				break
+			}
 			continue
 		}
 		p.instance.Query = string(p.runes[startIndex:p.index])
@@ -637,7 +650,7 @@ func (p *parser) schema() error {
 	schemaRunes := make([]rune, 0)
 	r, _ := p.current()
 	if !isAlpha(r) {
-		return newIriError(p, "Schema must start with alpha")
+		return newIriError(p, "Scheme must start with alpha")
 	}
 	schemaRunes = append(schemaRunes, r)
 	if !p.next() {
@@ -648,13 +661,14 @@ func (p *parser) schema() error {
 		if isAlpha(r) || isDigit(r) || r == '+' || r == '-' || r == '.' {
 			schemaRunes = append(schemaRunes, r)
 			if !p.next() {
-				p.instance.Schema = string(schemaRunes)
+				p.instance.Scheme = string(schemaRunes)
 				return nil
 			}
 			continue
 		}
 		break
 	}
+	p.instance.Scheme = string(schemaRunes)
 	return nil
 }
 
@@ -696,15 +710,11 @@ func (p *parser) ipLiteral() error {
 		return EOIError
 	}
 	preIndex := p.index
-	if ipv6Err := p.ipv6Address(); ipv6Err == nil {
-		return nil
-	}
-	p.index = preIndex
-	if ipvfErr := p.ipvFuture(); ipvfErr != nil {
-		return newIriError(p, "Invalid ipv6 or ipv future for ip literal")
-	}
-	if !p.next() {
-		return EOIError
+	if ipv6Err := p.ipv6Address(); ipv6Err != nil {
+		p.index = preIndex
+		if ipvfErr := p.ipvFuture(); ipvfErr != nil {
+			return newIriError(p, "Invalid ipv6 or ipv future for ip literal")
+		}
 	}
 	r, _ = p.current()
 	if r != ']' {
@@ -757,23 +767,31 @@ func (p *parser) ipvFuture() error {
 
 func (p *parser) ipv6Address() error {
 	groupCount := 0
-	zeroCollaps := false
+	zeroCollapse := false
 	prevColon := false
 
 	for {
 		r, _ := p.current()
 		if r == ':' {
 			if prevColon {
-				groupCount++
-				zeroCollaps = true
-			} else if zeroCollaps {
+				if zeroCollapse {
+					return newIriError(p, "Ambiguous ':'")
+				}
+				zeroCollapse = true
+			} else if zeroCollapse {
 				return newIriError(p, "Invalid zero collapse in ipv6")
 			}
 			prevColon = true
 		} else {
 			prevColon = false
 			if pErr := p.h16(); pErr != nil {
-				return newIriError(p, "Invalid hextet in ipv6")
+				if groupCount < 8 {
+					if zeroCollapse {
+						return nil
+					}
+					return newIriError(p, "Invalid group count in ipv6")
+				}
+				break
 			}
 			groupCount++
 		}
