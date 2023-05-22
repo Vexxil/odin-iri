@@ -16,6 +16,7 @@ const subDelims = "!$&'()*+,;="
 
 var EOIError = errors.New("end of input")
 
+// IriError specifies an error that occurred during the parsing of the input value.
 type IriError struct {
 	message string
 	index   int
@@ -26,13 +27,17 @@ func (i IriError) Error() string {
 	return fmt.Sprintf("index: %d, char: %c, message: %s", i.index, i.char, i.message)
 }
 
+// ParseIri attempts to parse a value into the IRI struct.
 func ParseIri(value string) (*IRI, error) {
 	p := newParser(value)
 	p.next()
 	return p.parse()
 }
 
+// IRI struct containing the parsed and validated value and each of its individual parts.
 type IRI struct {
+	// The raw value of this IRI
+	Value     string
 	Scheme    string
 	Authority string
 	Path      string
@@ -86,6 +91,7 @@ func (p *parser) parse() (*IRI, error) {
 	if iErr := p.iri(); iErr != nil {
 		return nil, iErr
 	}
+	p.instance.Value = string(p.runes)
 	return &p.instance, nil
 }
 
